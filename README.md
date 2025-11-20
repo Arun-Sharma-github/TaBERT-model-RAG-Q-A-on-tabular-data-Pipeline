@@ -1,31 +1,56 @@
-# TaBERT: Learning Contextual Representations for Natural Language Utterances and Structured Tables
+# TaBERT Model RAG Q&A on Tabular Data Pipeline
 
-This repository contains source code for the [`TaBERT` model](https://arxiv.org/abs/2005.08314), a pre-trained language model for learning joint representations of natural language utterances and (semi-)structured tables for semantic parsing. `TaBERT` is pre-trained on a massive corpus of 26M Web tables and their associated natural language context, and could be used as a drop-in replacement of a semantic parsers original encoder to compute representations for utterances and table schemas (columns).
+This repository implements a Retrieval-Augmented Generation (RAG) question-answering system for tabular data using the TaBERT model. TaBERT is a pre-trained language model that learns joint representations of natural language utterances and structured tables, making it ideal for semantic parsing and table understanding tasks.
+
+## Overview
+
+TaBERT (Tabular BERT) is pre-trained on a massive corpus of 26M Web tables and their associated natural language context. This project extends TaBERT's capabilities to build a RAG pipeline that can answer questions about tabular data by combining retrieval and generation techniques.
+
+## Features
+
+- Pre-trained TaBERT models for understanding natural language and table structures
+- RAG pipeline for question-answering on tabular data
+- Support for both base and large model variants
+- Integration with modern transformer architectures
+- Efficient table encoding and context representation
 
 ## Installation
 
-First, install the conda environment `tabert` with supporting libraries.
+### Prerequisites
 
-```bash
-bash scripts/setup_env.sh
-```
+- Python 3.7 or higher
+- CUDA-compatible GPU (recommended for training)
+- Conda package manager
 
-Once the conda environment is created, install `TaBERT` using the following command:
+### Setup Instructions
 
-```bash
-conda activate tabert
-pip install --editable .
-```
+1. **Clone the repository**
+   ```bash
+   git clone <your-repository-url>
+   cd tabert-rag-qa
+   ```
 
-**Integration with HuggingFace's pytorch-transformers Library** is still WIP. While all the pre-trained models were developed based on the old version of the library `pytorch-pretrained-bert`, they are compatible with the the latest version `transformers`. The conda environment will install both versions of the transformers library, and `TaBERT` will use `pytorch-pretrained-bert` by default. You could uninstall the `pytorch-pretrained-bert` library if you prefer using `TaBERT` with the latest version of `transformers`.
+2. **Create and activate the conda environment**
+   ```bash
+   bash scripts/setup_env.sh
+   conda activate tabert
+   ```
+
+3. **Install the package and dependencies**
+   ```bash
+   pip install --editable .
+   pip install -r requirements.txt
+   ```
+
+### Library Compatibility Note
+
+The pre-trained models are compatible with both `pytorch-pretrained-bert` (legacy) and the latest `transformers` library. The conda environment installs both versions by default. You can uninstall `pytorch-pretrained-bert` if you prefer using only the latest `transformers` library.
 
 ## Pre-trained Models
 
-Pre-trained models could be downloaded from this [Google Drive shared folder](https://drive.google.com/drive/folders/1fDW9rLssgDAv19OMcFGgFJ5iyd9p7flg?usp=sharing).
-Please uncompress the tarball files before usage.
+Pre-trained TaBERT models are available for download. You can download them using the following commands:
 
-Pre-trained models could be downloaded from command line as follows:
-```shell script
+```bash
 pip install gdown
 
 # TaBERT_Base_(k=1)
@@ -41,22 +66,27 @@ gdown 'https://drive.google.com/uc?id=1eLJFUWnrJRo6QpROYWKXlbSOjRDDZ3yZ'
 gdown 'https://drive.google.com/uc?id=17NTNIqxqYexAzaH_TgEfK42-KmjIRC-g'
 ```
 
-## Using a Pre-trained Model
+**Note:** Please uncompress the tarball files before usage.
 
-To load a pre-trained model from a checkpoint file:
+## Quick Start
+
+### Loading a Pre-trained Model
 
 ```python
 from table_bert import TableBertModel
 
+# Load from checkpoint
 model = TableBertModel.from_pretrained(
     'path/to/pretrained/model/checkpoint.bin',
 )
 ```
 
-To produce representations of natural language text and and its associated table:
+### Encoding Tables and Context
+
 ```python
 from table_bert import Table, Column
 
+# Create a table
 table = Table(
     id='List of countries by GDP (PPP)',
     header=[
@@ -70,32 +100,23 @@ table = Table(
     ]
 ).tokenize(model.tokenizer)
 
-# To visualize table in an IPython notebook:
-# display(table.to_data_frame(), detokenize=True)
-
+# Define context
 context = 'show me countries ranked by GDP'
 
-# model takes batched, tokenized inputs
+# Encode context and table
 context_encoding, column_encoding, info_dict = model.encode(
     contexts=[model.tokenizer.tokenize(context)],
     tables=[table]
 )
+
+# Output shapes
+# context_encoding.shape -> torch.Size([1, 7, 768])
+# column_encoding.shape -> torch.Size([1, 2, 768])
 ```
 
-For the returned tuple, `context_encoding` and `column_encoding` are PyTorch tensors 
-representing utterances and table columns, respectively. `info_dict` contains useful 
-meta information (e.g., context/table masks, the original input tensors to BERT) for 
-downstream application.
+### Using Vanilla BERT
 
-```python
-context_encoding.shape
->>> torch.Size([1, 7, 768])
-
-column_encoding.shape
->>> torch.Size([1, 2, 768])
-```
-
-**Use Vanilla BERT** To initialize a TaBERT model from the parameters of BERT:
+You can also initialize a TaBERT model from standard BERT parameters:
 
 ```python
 from table_bert import TableBertModel
@@ -103,92 +124,29 @@ from table_bert import TableBertModel
 model = TableBertModel.from_pretrained('bert-base-uncased')
 ```
 
+## Project Structure
+
+```
+├── examples/              # Example applications
+├── preprocess/           # Data preprocessing scripts
+├── scripts/              # Setup and utility scripts
+├── table_bert/           # Main TaBERT implementation
+├── utils/                # Training data generation utilities
+├── train.py              # Model training script
+└── requirements.txt      # Python dependencies
+```
+
 ## Example Applications
 
-TaBERT could be used as a general-purpose representation learning layer for semantic parsing tasks over database tables. 
-Example applications could be found under the `examples` folder.
+TaBERT can be used as a general-purpose representation learning layer for semantic parsing tasks over database tables. Example applications are available in the `examples` folder.
 
-## Extract/Preprocess Table Corpora from CommonCrawl and Wikipedia
+## Advanced Usage
 
-### Prerequisite
+### Training Data Generation
 
-The following libraries are used for data extraction:
+Generate training data for masked language modeling:
 
-* [`jnius`](https://pyjnius.readthedocs.io/en/stable/)
-* [`info.bliki.wiki`](https://bitbucket.org/axelclk/info.bliki.wiki/wiki/Mediawiki2HTML)
-* wikitextparser
-* Beautiful Soup 4
-* Java Wikipedia code located at `contrib/wiki_extractor`
-    * It compiles to a `.jar` file using maven, which is also included in the folder
-* `jdk` 12+
-
-### Installation
-Fist, you need to install Java JDK. 
-Then use the following command to install necessary Python libraries. 
-
-```
-pip install -r preprocess/requirements.txt
-python -m spacy download en_core_web_sm
-```
-
-### Training Table Corpora Extraction
-
-#### CommonCrawl WDC Web Table Corpus 2015
-
-Details of the dataset could be found at [here](http://webdatacommons.org/webtables/2015/downloadInstructions.html).
-We used the English relational tables split, which could be downloaded at [here](http://data.dws.informatik.uni-mannheim.de/webtables/2015-07/englishCorpus/compressed/).
-
-The script to preprocess the data is at `scripts/preprocess_commoncrawl_tables.sh`.
-The following command pre-processes [a sample](http://data.dws.informatik.uni-mannheim.de/webtables/2015-07/sample.gz) 
-of the whole WDC dataset. To preprocess the whole dataset, simply replace 
-the `input_file` with the root folder of the downloaded tar ball files.
-```shell script
-mkdir -p data/datasets
-wget http://data.dws.informatik.uni-mannheim.de/webtables/2015-07/sample.gz -P data/datasets
-gzip -d < data/datasets/sample.gz > data/datasets/commoncrawl.sample.jsonl
-
-python \
-    -m preprocess.common_crawl \
-    --worker_num 12 \
-    --input_file data/datasets/commoncrawl.sample.jsonl \
-    --output_file data/preprocessed_data/common_crawl.preprocessed.jsonl
-```
-
-#### Wikipedia Tables
-
-The script to extract Wiki tables is at `scripts/extract_wiki_tables.sh`. It demonstrates
-extracting tables from a sampled Wikipedia dump. Again, you may need the full Wikipedida dump
-to perform data extraction.
-
-### Notes for Table Extraction
-
-**Extract Tables from Scraped HTML Pages** 
-Most code in `preprocess.extract_wiki_data` is for extracting surrounding 
-natural language sentences around tables. If you are only interested in 
-extracting tables (e.g., from scraped Wiki Web pages), you could just use 
-the `extract_table_from_html` function. See the comments for more details. 
-
-## Training Data Generation
-
-This section documents how to generate training data for masked language modeling training 
-from extracted and preprocessed tables. 
-
-The scripts to generate training data for our vanilla `TaBERT(K=1)` and vertical attention
-`TaBERT(k=3)` models are `utils/generate_vanilla_tabert_training_data.py` and 
-`utils/generate_vertical_tabert_training_data.py`. They are heavily optimized for generating 
-data in parallel in a distributed compute environment, but could still be used locally. 
-
-The following script assumes you have concatenated
-the `.jsonl` files obtained from running the data extraction scripts on Wikipedia and CommonCrawl
-corpora and saved to `data/preprocessed_data/tables.jsonl`
-
-```shell script
-cd data/preprocessed_data
-cat common_crawl.preprocessed.jsonl wiki_tables.jsonl > tables.jsonl
-```
-
-The following script generates training data for a vanilla `TaBERT(K=1)` model:
-```shell script
+```bash
 output_dir=data/train_data/vanilla_tabert
 mkdir -p ${output_dir}
 
@@ -208,37 +166,11 @@ python -m utils.generate_vanilla_tabert_training_data \
     --column_delimiter "[SEP]"
 ```
 
-The following script generates training data for a `TaBERT(K=3)` model with 
-vertical self-attention:
-```shell script
-output_dir=data/train_data/vertical_tabert
-mkdir -p ${output_dir}
+### Model Training
 
-python -m utils.generate_vertical_tabert_training_data \
-    --output_dir ${output_dir} \
-    --train_corpus data/preprocessed_data/tables.jsonl \
-    --base_model_name bert-base-uncased \
-    --do_lower_case \
-    --epochs_to_generate 15 \
-    --max_context_len 128 \
-    --table_mask_strategy column \
-    --context_sample_strategy concate_and_enumerate \
-    --masked_column_prob 0.2 \
-    --masked_context_prob 0.15 \
-    --max_predictions_per_seq 200 \
-    --cell_input_template 'column|type|value' \
-    --column_delimiter "[SEP]"
-```
+Train a vanilla TaBERT model:
 
-**Parallel Data Generation** The script has two additional arguments, `--global_rank` and 
-`--world_size`. To generate training data in parallel using `N` processes, just fire up 
-`N` processes with the same set of arguments and `--world_size=N`. The argument `--global_rank` 
-is set to `[1, 2, ..., N]` for each process.
-
-## Model Training
-Our models are trained on a cluster of 32GB Tesla V100 GPUs. The following script demonstrates 
-training a vanilla `TaBERT(k=1)` model using a single GPU with gradient accumulation:
-```shell script
+```bash
 mkdir -p data/runs/vanilla_tabert
 
 python train.py \
@@ -257,32 +189,15 @@ python train.py \
     --empty-cache-freq 128
 ```
 
-The following script shows training a `TaBERT(k=3)` model with vertical self-attention:
-```shell script
-mkdir -p data/runs/vertical_tabert
+## Data Processing
 
-python train.py \
-    --task vertical_attention \
-    --data-dir data/train_data/vertical_tabert \
-    --output-dir data/runs/vertical_tabert \
-    --table-bert-extra-config '{"base_model_name": "bert-base-uncased", "num_vertical_attention_heads": 6, "num_vertical_layers": 3, "predict_cell_tokens": true}' \
-    --train-batch-size 8 \
-    --gradient-accumulation-steps 64 \
-    --learning-rate 4e-5 \
-    --max-epoch 10 \
-    --adam-eps 1e-08 \
-    --weight-decay 0.01 \
-    --fp16 \
-    --clip-norm 1.0 \
-    --empty-cache-freq 128
-```
+For information on extracting and preprocessing table corpora from CommonCrawl and Wikipedia, please refer to the detailed documentation in the `preprocess` directory.
 
-Distributed training with multiple GPUs is similar to [XLM](https://github.com/facebookresearch/XLM).
+## Citation
 
-## Reference
+If you use TaBERT in your research, please cite the original paper:
 
-If you plan to use `TaBERT` in your project, please consider citing [our paper](https://arxiv.org/abs/2005.08314):
-```
+```bibtex
 @inproceedings{yin20acl,
     title = {Ta{BERT}: Pretraining for Joint Understanding of Textual and Tabular Data},
     author = {Pengcheng Yin and Graham Neubig and Wen-tau Yih and Sebastian Riedel},
@@ -294,4 +209,12 @@ If you plan to use `TaBERT` in your project, please consider citing [our paper](
 
 ## License
 
-TaBERT is CC-BY-NC 4.0 licensed as of now.
+This project is licensed under CC-BY-NC 4.0.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
+
+## Acknowledgments
+
+This project builds upon the original TaBERT implementation and extends it for RAG-based question-answering on tabular data.
